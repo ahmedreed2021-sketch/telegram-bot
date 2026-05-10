@@ -5,9 +5,9 @@ from aiogram.types import Message
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.types import CallbackQuery
 
-BOT_TOKEN = '8734604709:AAEyxy0wnIcl3zQVd2vuzlMzZZCheU1OeUc'
-OWNER_ID = 8755001668
+BOT_TOKEN = "8734604709:AAEyxy0wnIcl3zQVd2vuzlMzZZCheU1OeUc"
 
+OWNER_ID = 8755001668
 MAX_USERS = 502
 
 bot = Bot(token=BOT_TOKEN)
@@ -19,7 +19,7 @@ banned_users = {}
 
 waiting_name = set()
 
-# start
+# START
 @dp.message(F.text == "/start")
 async def start(message: Message):
 
@@ -28,37 +28,110 @@ async def start(message: Message):
     if user_id in banned_users:
 
         await message.answer(
-            f"تم حظرك\nالسبب : {banned_users[user_id]}"
+            f"⛔ You are banned\nReason: {banned_users[user_id]}"
         )
 
         return
 
     if user_id in users:
 
-        await message.answer("انت مشترك بالفعل")
+        await message.answer("✅ You are already approved.")
         return
 
     waiting_name.add(user_id)
 
-    await message.answer("ارسل اسم مستعار")
+    rules_text = """
+📜 Lobby Rules
+
+⭐ ⭐️ 🚨 OMG NEW HUMAN 🚨
+- just spawned in BMG!!
+PLEASE ENSURE ALL SUBMISSIONS ARE 14+
+Say hi or we assume you’re a potato 🥔
+
+Also u might wanna read rules. We assume u can read ofc 🤭😬😭🥀
+
+1A - Strictly OVER 14 and BOYS only
+1B - IF U dont post minimum 3 times in 7 days you will be banned by the bot.
+
+Welcome to BMG 👋
+
+Yes… you survived the invite. Don’t mess it up.
+
+😂 Basic braincell rules
+
+• Be nice or go touch grass 🌱
+• No fighting — this is a group, not WWE
+• Respect vibes = stay alive
+
+⸻
+
+📷 Media rules
+
+• Post cool stuff, not spam dumps
+• No weird illegal stuff (mods have superpowers)
+
+⸻
+
+💬 Chat energy
+
+• Say hi when you join or lose XP 🎮
+• Drama belongs in reality TV, not here
+• Flirting allowed, being creepy = nope 🚫
+
+⸻
+
+⚠️ Admin powers
+
+Mods can:
+• bonk 🪄
+• mute 🤐
+• yeet 🚀
+
+⛔ THIS IS A BOY ONLY GROUP, IF YOU SEND IMAGES OF GIRLS YOU WILL BE PERMANENTLY BANNED WITH NO SECOND CHANCES ⛔
+
+Violations may result in warnings, kicks, or bans.
+"""
+
+    welcome_text = """
+🎭 Welcome to BMG 2026!
+
+This is an anonymous lobby where you chat with others using an alias.
+
+Getting Started:
+1️⃣ Choose an alias (display name)
+2️⃣ 📸 Send 3 media items within 30 minutes for approval
+3️⃣ ⏳ Wait for admin approval to start chatting
+4️⃣ Send 3 media items per week to stay active
+
+Please choose your alias:
+• 3-24 characters
+• Must include at least one letter or number
+• Can include emoji and spaces
+• Must be unique
+
+Send your desired alias now:
+"""
+
+    await message.answer(rules_text)
+    await message.answer(welcome_text)
 
 
-# استقبال الرسائل
+# RECEIVE MESSAGES
 @dp.message(~F.text.startswith("/"))
 async def all_messages(message: Message):
 
     user_id = message.from_user.id
 
-    # لو محظور
+    # banned check
     if user_id in banned_users:
 
         await message.answer(
-            f"تم حظرك\nالسبب : {banned_users[user_id]}"
+            f"⛔ You are banned\nReason: {banned_users[user_id]}"
         )
 
         return
 
-    # حفظ الاسم المستعار
+    # save alias
     if user_id in waiting_name:
 
         nickname = message.text
@@ -71,12 +144,12 @@ async def all_messages(message: Message):
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text="قبول",
+                        text="✅ Accept",
                         callback_data=f"accept_{user_id}"
                     ),
 
                     InlineKeyboardButton(
-                        text="رفض",
+                        text="❌ Reject",
                         callback_data=f"reject_{user_id}"
                     )
                 ]
@@ -85,28 +158,43 @@ async def all_messages(message: Message):
 
         await bot.send_message(
             OWNER_ID,
-            f"طلب انضمام جديد\n\n"
-            f"الاسم : {nickname}\n"
-            f"الايدي : {user_id}",
+            f"📥 New Join Request\n\n"
+            f"👤 Alias: {nickname}\n"
+            f"🆔 ID: {user_id}",
             reply_markup=keyboard
         )
 
         await message.answer(
-            "تم ارسال طلب الانضمام انتظر موافقة الإدارة"
+            f"""✅ Alias Set!
+
+Your alias: 🔰 {nickname}
+
+Next Steps:
+📸 Send 3 media items within the next 30 minutes to fully join the lobby.
+
+Media can be:
+Photos 🖼️
+Videos 🎥
+Documents 📄
+Audio 🎵
+Voice 🎤
+Animations 🎞️
+
+Type /help for more information!"""
         )
 
         return
 
-    # لو غير مقبول
+    # not approved
     if user_id not in users:
 
         await message.answer(
-            "انت غير مقبول حاليا"
+            "⏳ You are not approved yet."
         )
 
         return
 
-    # حذف الرسالة الأصلية
+    # delete original message
     try:
         await message.delete()
     except:
@@ -114,7 +202,7 @@ async def all_messages(message: Message):
 
     nickname = users[user_id]
 
-    # نشر الرسالة للجميع
+    # send to everyone
     for uid in users:
 
         try:
@@ -154,7 +242,7 @@ async def all_messages(message: Message):
             pass
 
 
-# قبول / رفض
+# ACCEPT / REJECT
 @dp.callback_query()
 async def callbacks(call: CallbackQuery):
 
@@ -163,19 +251,18 @@ async def callbacks(call: CallbackQuery):
 
     data = call.data
 
-    # قبول
+    # accept
     if data.startswith("accept_"):
 
         user_id = int(data.split("_")[1])
 
         nickname = pending_users[user_id]
 
-        # الحد الأقصى
         if len(users) >= MAX_USERS:
 
             await bot.send_message(
                 user_id,
-                "البوت ممتلئ حاليا"
+                "⛔ Lobby is full."
             )
 
             return
@@ -186,14 +273,14 @@ async def callbacks(call: CallbackQuery):
 
         await bot.send_message(
             user_id,
-            "تم قبول طلبك يمكنك النشر الآن"
+            "✅ Your request has been approved."
         )
 
         await call.message.edit_text(
-            f"تم قبول {nickname}"
+            f"✅ Accepted {nickname}"
         )
 
-    # رفض
+    # reject
     elif data.startswith("reject_"):
 
         user_id = int(data.split("_")[1])
@@ -204,15 +291,15 @@ async def callbacks(call: CallbackQuery):
 
         await bot.send_message(
             user_id,
-            "تم رفض طلبك"
+            "❌ Your request has been rejected."
         )
 
         await call.message.edit_text(
-            f"تم رفض {nickname}"
+            f"❌ Rejected {nickname}"
         )
 
 
-# حظر عضو
+# BAN USER
 @dp.message(F.text.startswith("/ban"))
 async def ban_user(message: Message):
 
@@ -233,22 +320,22 @@ async def ban_user(message: Message):
             del users[user_id]
 
         await message.answer(
-            "تم حظر العضو"
+            "✅ User banned."
         )
 
         await bot.send_message(
             user_id,
-            f"تم حظرك\nالسبب : {reason}"
+            f"⛔ You are banned\nReason: {reason}"
         )
 
     except:
 
         await message.answer(
-            "استخدم:\n/ban id السبب"
+            "Usage:\n/ban id reason"
         )
 
 
-# طرد عضو
+# KICK USER
 @dp.message(F.text.startswith("/kick"))
 async def kick(message: Message):
 
@@ -265,21 +352,21 @@ async def kick(message: Message):
 
             await bot.send_message(
                 user_id,
-                "تم طردك من البوت"
+                "❌ You have been kicked."
             )
 
             await message.answer(
-                "تم الطرد"
+                "✅ User kicked."
             )
 
     except:
 
         await message.answer(
-            "استخدم:\n/kick id"
+            "Usage:\n/kick id"
         )
 
 
-# عدد الأعضاء
+# MEMBERS COUNT
 @dp.message(F.text == "/members")
 async def members(message: Message):
 
@@ -287,7 +374,7 @@ async def members(message: Message):
         return
 
     await message.answer(
-        f"عدد الاعضاء : {len(users)}"
+        f"👥 Members: {len(users)}"
     )
 
 
