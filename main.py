@@ -1,44 +1,47 @@
-import asyncio
-
 from aiogram import Bot, Dispatcher, F
+from aiogram.filters import Command
 from aiogram.types import Message
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.types import CallbackQuery
+import asyncio
+import aiosqlite
 
 BOT_TOKEN = "8734604709:AAEyxy0wnIcl3zQVd2vuzlMzZZCheU1OeUc"
-
 OWNER_ID = 8755001668
-MAX_USERS = 502
-
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-users = {}
-pending_users = {}
-banned_users = {}
+waiting_alias = set()
 
-waiting_name = set()
+# ================= DATABASE =================
 
-# START
-@dp.message(F.text == "/start")
-async def start(message: Message):
+async def init_db():
+    async with aiosqlite.connect("bmg.db") as db:
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            alias TEXT
+        )
+        """)
+        await db.commit()
+
+# ================= START =================
+
+@dp.message(Command("start"))
+async def start_command(message: Message):
 
     user_id = message.from_user.id
 
-    if user_id in banned_users:
-
-        await message.answer(
-            f"⛔ You are banned\nReason: {banned_users[user_id]}"
+    async with aiosqlite.connect("bmg.db") as db:
+        cursor = await db.execute(
+            "SELECT alias FROM users WHERE user_id = ?",
+            (user_id,)
         )
+        user = await cursor.fetchone()
 
+    if user:
+        await message.answer(
+            f"✅ Welcome back!\n\nYour alias: 🔰 {user[0]}"
+        )
         return
-
-    if user_id in users:
-
-        await message.answer("✅ You are already approved.")
-        return
-
-    waiting_name.add(user_id)
 
     rules_text = """
 📜 Lobby Rules
@@ -63,14 +66,14 @@ Yes… you survived the invite. Don’t mess it up.
 • No fighting — this is a group, not WWE
 • Respect vibes = stay alive
 
-⸻
+━━━━━━━━━━━━━━
 
 📷 Media rules
 
 • Post cool stuff, not spam dumps
-• No weird illegal stuff (mods have superpowers)
+• No weird illegal stuff
 
-⸻
+━━━━━━━━━━━━━━
 
 💬 Chat energy
 
@@ -78,7 +81,7 @@ Yes… you survived the invite. Don’t mess it up.
 • Drama belongs in reality TV, not here
 • Flirting allowed, being creepy = nope 🚫
 
-⸻
+━━━━━━━━━━━━━━
 
 ⚠️ Admin powers
 
@@ -87,7 +90,8 @@ Mods can:
 • mute 🤐
 • yeet 🚀
 
-⛔ THIS IS A BOY ONLY GROUP, IF YOU SEND IMAGES OF GIRLS YOU WILL BE PERMANENTLY BANNED WITH NO SECOND CHANCES ⛔
+⛔️ THIS IS A BOY ONLY GROUP.
+IF YOU SEND IMAGES OF GIRLS YOU WILL BE PERMANENTLY BANNED.
 
 Violations may result in warnings, kicks, or bans.
 """
@@ -115,59 +119,125 @@ Send your desired alias now:
     await message.answer(rules_text)
     await message.answer(welcome_text)
 
+    waiting_alias.add(user_id)
 
-# RECEIVE MESSAGES
-@dp.message(~F.text.startswith("/"))
-async def all_messages(message: Message):
+# ================= HELP =================
+
+@dp.message(Command("help"))
+async def help_command(message: Message):
+
+    text = """
+📚 BMG 2026 Help
+
+💬 HOW IT WORKS
+• Messages are relayed anonymously to all members
+• Your alias and rank emoji are shown instead of your name
+• Rank-based quotas and perks reward active members
+
+━━━━━━━━━━━━━━
+
+⚡ Basic Commands
+
+/start - Start or restart the bot
+/help - Show this help menu
+/stats - View your statistics and rank
+/perks - View all rank tiers and benefits
+/leaderboard - View top contributors
+/alias - Change your display name
+/version - Show bot version
+/test - Check connection status
+
+━━━━━━━━━━━━━━
+
+👥 Social Commands
+
+/block <alias> - Block/unblock a user
+/flag [reason] - Report content
+
+━━━━━━━━━━━━━━
+
+🏆 Rank System
+
+12 Rank Tiers:
+🟩 Newcomer → 🥉 Bronze → 🥈 Silver
+🥇 Gold → 🏆 Platinum → 💎 Diamond
+👑 Master → ⭐ Legend → 🌟 Mythic
+
+━━━━━━━━━━━━━━
+
+📜 Info Commands
+
+/rules - View lobby rules
+/welcome - View welcome message
+/leave - Leave the lobby
+
+━━━━━━━━━━━━━━
+
+📦 Archive Commands
+
+/archive - Browse archives
+/purchases - View purchases
+
+━━━━━━━━━━━━━━
+
+🧵 Topics
+
+/blocktopic - Mute/unmute topic
+/resynctopics - Recreate topics
+
+━━━━━━━━━━━━━━
+
+⚠️ This is a BOYS ONLY lobby.
+"""
+
+    await message.answer(text)
+
+# ================= SAVE ALIAS =================
+
+@dp.message()
+async def save_alias(message: Message):
 
     user_id = message.from_user.id
 
-    # banned check
-    if user_id in banned_users:
-
-        await message.answer(
-            f"⛔ You are banned\nReason: {banned_users[user_id]}"
-        )
-
+    if user_id not in waiting_alias:
         return
 
-    # save alias
-    if user_id in waiting_name:
+    alias = message.text.strip()
 
-        nickname = message.text
-
-        pending_users[user_id] = nickname
-
-        waiting_name.remove(user_id)
-
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="✅ Accept",
-                        callback_data=f"accept_{user_id}"
-                    ),
-
-                    InlineKeyboardButton(
-                        text="❌ Reject",
-                        callback_data=f"reject_{user_id}"
-                    )
-                ]
-            ]
-        )
-
-        await bot.send_message(
-            OWNER_ID,
-            f"📥 New Join Request\n\n"
-            f"👤 Alias: {nickname}\n"
-            f"🆔 ID: {user_id}",
-            reply_markup=keyboard
-        )
-
+    if len(alias) < 3 or len(alias) > 24:
         await message.answer(
-            f"""✅ Alias Set!
+            "❌ Alias must be between 3 and 24 characters."
+        )
+        return
 
-Your alias: 🔰 {nickname}
+    async with aiosqlite.connect("bmg.db") as db:
+
+        cursor = await db.execute(
+            "SELECT alias FROM users WHERE alias = ?",
+            (alias,)
+        )
+
+        existing = await cursor.fetchone()
+
+        if existing:
+            await message.answer(
+                "❌ This alias is already taken."
+            )
+            return
+
+        await db.execute(
+            "INSERT OR REPLACE INTO users (user_id, alias) VALUES (?, ?)",
+            (user_id, alias)
+        )
+
+        await db.commit()
+
+    waiting_alias.remove(user_id)
+
+    success_text = f"""
+✅ Alias Set!
+
+Your alias: 🔰 {alias}
 
 Next Steps:
 📸 Send 3 media items within the next 30 minutes to fully join the lobby.
@@ -180,205 +250,16 @@ Audio 🎵
 Voice 🎤
 Animations 🎞️
 
-Type /help for more information!"""
-        )
+Type /help for more information!
+"""
 
-        return
+    await message.answer(success_text)
 
-    # not approved
-    if user_id not in users:
-
-        await message.answer(
-            "⏳ You are not approved yet."
-        )
-
-        return
-
-    # delete original message
-    try:
-        await message.delete()
-    except:
-        pass
-
-    nickname = users[user_id]
-
-    # send to everyone
-    for uid in users:
-
-        try:
-
-            if message.text:
-
-                await bot.send_message(
-                    uid,
-                    f"👤 {nickname}\n\n📩 {message.text}"
-                )
-
-            elif message.photo:
-
-                await bot.send_photo(
-                    uid,
-                    message.photo[-1].file_id,
-                    caption=f"👤 {nickname}"
-                )
-
-            elif message.video:
-
-                await bot.send_video(
-                    uid,
-                    message.video.file_id,
-                    caption=f"👤 {nickname}"
-                )
-
-            elif message.document:
-
-                await bot.send_document(
-                    uid,
-                    message.document.file_id,
-                    caption=f"👤 {nickname}"
-                )
-
-        except:
-            pass
-
-
-# ACCEPT / REJECT
-@dp.callback_query()
-async def callbacks(call: CallbackQuery):
-
-    if call.from_user.id != OWNER_ID:
-        return
-
-    data = call.data
-
-    # accept
-    if data.startswith("accept_"):
-
-        user_id = int(data.split("_")[1])
-
-        nickname = pending_users[user_id]
-
-        if len(users) >= MAX_USERS:
-
-            await bot.send_message(
-                user_id,
-                "⛔ Lobby is full."
-            )
-
-            return
-
-        users[user_id] = nickname
-
-        del pending_users[user_id]
-
-        await bot.send_message(
-            user_id,
-            "✅ Your request has been approved."
-        )
-
-        await call.message.edit_text(
-            f"✅ Accepted {nickname}"
-        )
-
-    # reject
-    elif data.startswith("reject_"):
-
-        user_id = int(data.split("_")[1])
-
-        nickname = pending_users[user_id]
-
-        del pending_users[user_id]
-
-        await bot.send_message(
-            user_id,
-            "❌ Your request has been rejected."
-        )
-
-        await call.message.edit_text(
-            f"❌ Rejected {nickname}"
-        )
-
-
-# BAN USER
-@dp.message(F.text.startswith("/ban"))
-async def ban_user(message: Message):
-
-    if message.from_user.id != OWNER_ID:
-        return
-
-    try:
-
-        text = message.text.split()
-
-        user_id = int(text[1])
-
-        reason = " ".join(text[2:])
-
-        banned_users[user_id] = reason
-
-        if user_id in users:
-            del users[user_id]
-
-        await message.answer(
-            "✅ User banned."
-        )
-
-        await bot.send_message(
-            user_id,
-            f"⛔ You are banned\nReason: {reason}"
-        )
-
-    except:
-
-        await message.answer(
-            "Usage:\n/ban id reason"
-        )
-
-
-# KICK USER
-@dp.message(F.text.startswith("/kick"))
-async def kick(message: Message):
-
-    if message.from_user.id != OWNER_ID:
-        return
-
-    try:
-
-        user_id = int(message.text.split()[1])
-
-        if user_id in users:
-
-            del users[user_id]
-
-            await bot.send_message(
-                user_id,
-                "❌ You have been kicked."
-            )
-
-            await message.answer(
-                "✅ User kicked."
-            )
-
-    except:
-
-        await message.answer(
-            "Usage:\n/kick id"
-        )
-
-
-# MEMBERS COUNT
-@dp.message(F.text == "/members")
-async def members(message: Message):
-
-    if message.from_user.id != OWNER_ID:
-        return
-
-    await message.answer(
-        f"👥 Members: {len(users)}"
-    )
-
+# ================= MAIN =================
 
 async def main():
+    await init_db()
     await dp.start_polling(bot)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
