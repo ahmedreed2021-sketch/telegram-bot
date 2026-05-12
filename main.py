@@ -11,15 +11,15 @@ from aiogram.types import (
 import os
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = 8680643227
+OWNER_ID = 8755001668
 
 MAX_USERS = 1000
 
 CHANNELS = [
-    -1003294367677,
-    -1003954730429,
-    -1003953879073,
-    -1003750715678
+    -1003759990321,
+    -1003947622092,
+    -1003839014211,
+    -1003877842234
 ]
 
 current_channel = 0
