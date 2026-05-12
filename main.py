@@ -8,8 +8,9 @@ from aiogram.types import (
     CallbackQuery
 )
 
-BOT_TOKEN = "8681175277:AAEzED0cpESVc0d9Cw5qcZyO_aO3slnDmH8"
+import os
 
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = 8680643227
 
 MAX_USERS = 1000
