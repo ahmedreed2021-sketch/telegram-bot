@@ -1,0 +1,11 @@
+.env
+.venv/
+.env/
+__pycache__/
+*.py[cod]
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+backups/

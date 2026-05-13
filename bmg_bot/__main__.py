@@ -1,5 +1,3 @@
-"""Entry point for Railway and local runs: `python main.py`."""
-
 from bmg_bot.main import main
 
 if __name__ == "__main__":
