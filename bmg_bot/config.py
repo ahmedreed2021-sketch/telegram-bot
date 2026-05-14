@@ -85,7 +85,7 @@ def load_settings() -> Settings:
     data_dir = os.getenv("DATA_DIR", "data").strip() or "data"
     os.makedirs(data_dir, exist_ok=True)
 
-    sqlite_default = os.path.join(data_dir, "bmg.db")
+    sqlite_default = os.path.join(data_dir, "bot2.db")
     sqlite_path = os.getenv("SQLITE_PATH", sqlite_default).strip() or sqlite_default
     parent = os.path.dirname(os.path.abspath(sqlite_path))
     if parent:
