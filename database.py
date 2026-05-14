@@ -1,11 +1,7 @@
 import aiosqlite
 
-<<<<<<< HEAD
-DB_NAME = "bot2.db"
+DB_NAME = "data/bot2.db"
 
-=======
-DB_NAME = "data/bmg.db"
->>>>>>> e41b445804adcfea389e7eb328576b0a3047b6eb
 
 async def init_db():
 
