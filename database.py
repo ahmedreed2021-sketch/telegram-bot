@@ -1,7 +1,6 @@
 import aiosqlite
 
-DB_NAME = "bmg.db"
-
+DB_NAME = "data/bmg.db"
 
 async def init_db():
 
