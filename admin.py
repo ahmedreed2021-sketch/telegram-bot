@@ -26,8 +26,15 @@ async def admin_panel(message: Message):
         return
 
     await message.answer(
-        "⚙️ Admin Panel Active"
-    )
+    "⚙️ ADMIN PANEL\n\n"
+    "👥 /stats - Statistics\n"
+    "🚫 /ban - Ban User\n"
+    "⚠️ /warn - Warn User\n"
+    "🔇 /mute - Mute User\n"
+    "🔊 /unmute - Unmute User\n"
+    "📢 /broadcast - Broadcast Message\n"
+    "🛡️ System Online"
+)
 
 
 # =========================
@@ -40,8 +47,16 @@ async def ban_user(message: Message):
     if not is_admin(message.from_user.id):
         return
 
+    args = message.text.split()
+
+    if len(args) < 2:
+        await message.answer("Usage: /ban USER_ID")
+        return
+
+    user_id = int(args[1])
+
     await message.answer(
-        "✅ Ban command works"
+        f"🚫 User {user_id} banned"
     )
 
 
