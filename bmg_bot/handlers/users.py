@@ -248,7 +248,7 @@ Your alias: 🔰 {nickname}
             base_label="submission_progress",
         )
 
-        if count >= 3:
+        if count == 3:
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
