@@ -292,7 +292,8 @@ Your submission is still pending admin review."""
 
     if user_id not in repo.users:
         await call_with_telegram_retry(
-            lambda: message.answer("⏳ You are not approved yet."),
+            lambda: message.answer("⚠️ Session expired.\n"
+        "Please send /start again."),
             metrics=metrics,
             base_label="not_approved",
         )
